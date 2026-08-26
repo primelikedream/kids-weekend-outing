@@ -1,4 +1,52 @@
 {
-  "updatedAt": "2026-08-26T00:00:00.000Z",
-  "spots": []
+  "updatedAt": "2026-08-26T11:45:41.509Z",
+  "spots": [
+    {
+      "id": "2026-08-29-0",
+      "name": "京急ミュージアム",
+      "category": "博物館・科学館",
+      "reason": "屋内で雨の日でも安心。体験型の展示があれば3歳児も楽しめます。",
+      "weatherFit": "indoor",
+      "accessCar": "車で約15分(直線距離6.9km・目安、実際の道路状況により変動します)",
+      "accessTransit": "新高島駅から徒歩約1分(自宅から乗換・待ち時間含め計約45分・目安)",
+      "url": "https://www.google.com/maps/search/?api=1&query=35.462351%2C139.626282",
+      "suggestedFor": "2026-08-29",
+      "suggestedAt": "2026-08-26T11:45:41.508Z"
+    },
+    {
+      "id": "2026-08-29-1",
+      "name": "よこはまコスモワールド",
+      "category": "テーマパーク",
+      "reason": "乗り物やアトラクションが充実し、家族で1日楽しめます。",
+      "weatherFit": "either",
+      "accessCar": "車で約20分(直線距離8.0km・目安、実際の道路状況により変動します)",
+      "accessTransit": "みなとみらい駅から徒歩約5分(自宅から乗換・待ち時間含め計約50分・目安)",
+      "url": "http://cosmoworld.jp/",
+      "suggestedFor": "2026-08-29",
+      "suggestedAt": "2026-08-26T11:45:41.508Z"
+    },
+    {
+      "id": "2026-08-29-2",
+      "name": "UWS アクアリウム アンダーウォータースペース",
+      "category": "水族館",
+      "reason": "屋内で天気を気にせず楽しめ、色とりどりの生き物に夢中になれます。",
+      "weatherFit": "indoor",
+      "accessCar": "車で約20分(直線距離8.2km・目安、実際の道路状況により変動します)",
+      "accessTransit": "馬車道駅から徒歩約8分(自宅から乗換・待ち時間含め計約55分・目安)",
+      "url": "https://www.google.com/maps/search/?api=1&query=35.454453%2C139.6377935",
+      "suggestedFor": "2026-08-29",
+      "suggestedAt": "2026-08-26T11:45:41.508Z"
+    },
+    {
+      "id": "2026-08-29-3",
+      "name": "ミッケ ブック&マルシェ",
+      "category": "ショッピングモール",
+      "reason": "屋内施設でキッズスペースが併設されていることが多く、雨の日の候補になります。",
+      "weatherFit": "indoor",
+      "accessTransit": "上大岡駅から徒歩約4分(自宅から乗換・待ち時間含め計約55分・目安)",
+      "url": "https://www.google.com/maps/search/?api=1&query=35.4067153%2C139.5961178",
+      "suggestedFor": "2026-08-29",
+      "suggestedAt": "2026-08-26T11:45:41.508Z"
+    }
+  ]
 }
