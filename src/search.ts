@@ -7,7 +7,6 @@ const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter",
 ];
 
 function sleep(ms: number): Promise<void> {
@@ -141,6 +140,11 @@ async function queryOverpass(query: string): Promise<OverpassElement[]> {
         });
         if (!res.ok) throw new Error(`Overpass APIエラー(${url}): ${res.status}`);
         const json = (await res.json()) as OverpassResponse;
+        // 一部ミラーはデータベースが壊れていてもHTTP 200で空配列を返すことがあるため、
+        // 空の結果は失敗扱いにして次のミラーを試す(このアプリの検索範囲で0件は考えにくい)
+        if (json.elements.length === 0) {
+          throw new Error(`Overpass APIエラー(${url}): 空の結果(ミラーのデータが壊れている可能性)`);
+        }
         return json.elements;
       } catch (err) {
         lastErr = err as Error;
@@ -148,7 +152,8 @@ async function queryOverpass(query: string): Promise<OverpassElement[]> {
       }
     }
   }
-  throw lastErr ?? new Error("Overpass APIへの接続に失敗しました");
+  console.error(`Overpass APIへの接続にすべて失敗しました: ${lastErr?.message}`);
+  return [];
 }
 
 function elementLatLon(el: OverpassElement): { lat: number; lon: number } | null {
