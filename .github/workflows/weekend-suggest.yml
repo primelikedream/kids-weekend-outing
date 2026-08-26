@@ -1,4 +1,4 @@
-name: Suggest weekend outing spots and publish dashboard
+name: Suggest weekend outing spots and send digest email
 
 on:
   schedule:
@@ -10,12 +10,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   suggest:
@@ -42,7 +36,6 @@ jobs:
           HOME_LAT: ${{ vars.HOME_LAT }}
           HOME_LON: ${{ vars.HOME_LON }}
           HOME_LABEL: ${{ vars.HOME_LABEL }}
-          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
         run: npm run suggest
 
       - name: 履歴データの更新をコミット
@@ -52,18 +45,3 @@ jobs:
           git add docs/data/history.json
           git diff --cached --quiet || git commit -m "chore: update suggested spots history"
           git push
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-  deploy:
-    needs: suggest
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

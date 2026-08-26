@@ -2,8 +2,6 @@ import type { DayWeather } from "./weather.js";
 import type { Spot } from "./types.js";
 import type { DigestMail } from "./mailer.js";
 
-const DEFAULT_DASHBOARD_URL = "https://primelikedream.github.io/kids-weekend-outing/";
-
 const WEATHER_FIT_LABEL: Record<Spot["weatherFit"], string> = {
   indoor: "室内向き",
   outdoor: "屋外向き",
@@ -47,7 +45,6 @@ export function buildDigestMail(params: {
   spots: Spot[];
 }): DigestMail {
   const { targetDateLabel, weather, spots } = params;
-  const dashboardUrl = process.env.DASHBOARD_URL ?? DEFAULT_DASHBOARD_URL;
 
   const subject =
     spots.length > 0
@@ -58,16 +55,13 @@ export function buildDigestMail(params: {
 
   const text =
     spots.length > 0
-      ? `${targetDateLabel}のおでかけ候補です。\n${weatherLine}\n\n${spots
-          .map(spotTextBlock)
-          .join("\n\n")}\n\nダッシュボード: ${dashboardUrl}`
-      : `${targetDateLabel}のおでかけ候補を見つけられませんでした。\n${weatherLine}\n\nダッシュボード: ${dashboardUrl}`;
+      ? `${targetDateLabel}のおでかけ候補です。\n${weatherLine}\n\n${spots.map(spotTextBlock).join("\n\n")}`
+      : `${targetDateLabel}のおでかけ候補を見つけられませんでした。\n${weatherLine}`;
 
   const html = `
     <h2 style="color:#c2571a;">${escapeHtml(targetDateLabel)}のおでかけ候補</h2>
     <p style="color:#666;">${escapeHtml(weatherLine)}</p>
     ${spots.length > 0 ? spots.map(spotHtmlCard).join("") : "<p>今回は候補を見つけられませんでした。</p>"}
-    <p style="margin-top:16px;"><a href="${dashboardUrl}" style="display:inline-block;padding:0.6em 1.2em;background:#c2571a;color:#fff;text-decoration:none;border-radius:6px;">ダッシュボードを見る →</a></p>
   `;
 
   return { subject, text, html };
