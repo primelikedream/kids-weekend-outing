@@ -1,0 +1,21 @@
+{
+  "name": "kids-weekend-outing",
+  "version": "0.1.0",
+  "description": "3歳児と行く週末のお出かけ先を、天気予報とWeb検索から探して提案し、ダッシュボードとメールで発信するアプリ",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "suggest": "tsx src/suggest.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
+    "nodemailer": "^9.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "^6.4.16",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

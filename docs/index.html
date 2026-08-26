@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>週末おでかけナビ</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="masthead">
+    <h1>🧸 週末おでかけナビ</h1>
+    <p class="subtitle">3歳児と行く、横浜市都筑区川向町からの週末おでかけ候補</p>
+  </header>
+
+  <main>
+    <section class="upcoming" id="upcoming">
+      <h2>次のおでかけ候補</h2>
+      <div class="cards" id="upcoming-cards"><p class="loading">読み込み中...</p></div>
+    </section>
+
+    <section class="archive">
+      <h2>これまでの提案履歴</h2>
+      <div class="filter-pills" id="filter-pills">
+        <button class="pill active" data-filter="all">すべて</button>
+        <button class="pill" data-filter="indoor">室内向き</button>
+        <button class="pill" data-filter="outdoor">屋外向き</button>
+      </div>
+      <div class="archive-list" id="archive-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>天気予報(Open-Meteo)とWeb検索をもとにClaudeが提案しています。実際の営業時間・休園日は各施設の公式サイトでご確認ください。</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

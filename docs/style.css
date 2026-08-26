@@ -1,0 +1,154 @@
+:root {
+  --bg: #fffaf0;
+  --accent: #c2571a;
+  --accent-soft: #f0d9b5;
+  --indoor: #2c7a7a;
+  --outdoor: #3a8b3a;
+  --text: #4a3826;
+  --muted: #8a7860;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.masthead {
+  text-align: center;
+  padding: 32px 16px 20px;
+  background: linear-gradient(180deg, #fff2d9, var(--bg));
+}
+
+.masthead h1 {
+  margin: 0 0 6px;
+  font-size: 1.8em;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95em;
+}
+
+main {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+h2 {
+  font-size: 1.2em;
+  border-left: 6px solid var(--accent);
+  padding-left: 10px;
+  margin: 28px 0 14px;
+}
+
+.cards, .archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--accent-soft);
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+}
+
+.card-title {
+  font-size: 1.1em;
+  font-weight: bold;
+  color: var(--accent);
+}
+
+.card-meta {
+  font-size: 0.85em;
+  color: var(--muted);
+  margin: 2px 0 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  color: #fff;
+}
+
+.tag.indoor { background: var(--indoor); }
+.tag.outdoor { background: var(--outdoor); }
+.tag.either { background: var(--muted); }
+
+.card-reason {
+  margin-bottom: 8px;
+}
+
+.card-access {
+  font-size: 0.9em;
+  color: #555;
+}
+
+.card-access div { margin: 2px 0; }
+
+.card-link a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9em;
+}
+
+.card-link a:hover { text-decoration: underline; }
+
+.date-group {
+  margin-bottom: 18px;
+}
+
+.date-group h3 {
+  font-size: 1em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pill {
+  border: 1px solid var(--accent-soft);
+  background: #fff;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.pill.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.loading, .empty {
+  color: var(--muted);
+}
+
+footer {
+  max-width: 800px;
+  margin: 32px auto 16px;
+  padding: 0 16px;
+  font-size: 0.8em;
+  color: var(--muted);
+  text-align: center;
+}

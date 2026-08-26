@@ -1,0 +1,69 @@
+name: Suggest weekend outing spots and publish dashboard
+
+on:
+  schedule:
+    # 毎週土曜 06:00 JST (金曜 21:00 UTC)
+    - cron: "0 21 * * 5"
+    # 毎週日曜 06:00 JST (土曜 21:00 UTC)
+    - cron: "0 21 * * 6"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  suggest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: おでかけ候補を検索してメール送信
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          HOME_LAT: ${{ vars.HOME_LAT }}
+          HOME_LON: ${{ vars.HOME_LON }}
+          HOME_LABEL: ${{ vars.HOME_LABEL }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+        run: npm run suggest
+
+      - name: 履歴データの更新をコミット
+        run: |
+          git config user.name "kids-outing-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/data/history.json
+          git diff --cached --quiet || git commit -m "chore: update suggested spots history"
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: suggest
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
