@@ -3,7 +3,7 @@ import { searchSpots } from "./search.js";
 import { loadHistory, saveHistory, mergeSpots, recentNames } from "./store.js";
 import { sendDigestMail } from "./mailer.js";
 import { buildDigestMail } from "./digest.js";
-import { jstNow, jstDateString, jstWeekday, formatJstDateLabel } from "./date.js";
+import { jstNow, jstDateString, jstWeekday, formatJstDateLabel, nextSaturday } from "./date.js";
 
 const HOME_LAT = Number(process.env.HOME_LAT ?? "35.5165");
 const HOME_LON = Number(process.env.HOME_LON ?? "139.5890");
@@ -12,14 +12,20 @@ const RECENT_EXCLUDE_DAYS = 42;
 
 async function main() {
   const now = jstNow();
-  const weekday = jstWeekday(now);
+  let weekday = jstWeekday(now);
+  let target = now;
 
   if (weekday !== 0 && weekday !== 6) {
-    console.log("平日のため週末おでかけ提案の実行はスキップしました(土日のみ実行)。");
-    return;
+    if (process.env.FORCE_RUN !== "true") {
+      console.log("平日のため週末おでかけ提案の実行はスキップしました(土日のみ実行)。");
+      return;
+    }
+    console.log("FORCE_RUN=true のため、平日ですが直近の土曜日として実行します(動作確認用)。");
+    target = nextSaturday(now);
+    weekday = 6;
   }
 
-  const targetDate = jstDateString(now);
+  const targetDate = jstDateString(target);
   const targetDateLabel = formatJstDateLabel(targetDate, weekday);
   console.log(`対象日: ${targetDateLabel}`);
 

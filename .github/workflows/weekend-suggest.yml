@@ -6,7 +6,12 @@ on:
     - cron: "0 21 * * 5"
     # 毎週日曜 06:00 JST (土曜 21:00 UTC)
     - cron: "0 21 * * 6"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "平日でも直近の土曜日として動作確認実行する"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -36,6 +41,7 @@ jobs:
           HOME_LAT: ${{ vars.HOME_LAT }}
           HOME_LON: ${{ vars.HOME_LON }}
           HOME_LABEL: ${{ vars.HOME_LABEL }}
+          FORCE_RUN: ${{ github.event.inputs.force }}
         run: npm run suggest
 
       - name: 履歴データの更新をコミット

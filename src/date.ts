@@ -14,6 +14,15 @@ export function jstWeekday(d: Date = jstNow()): number {
   return d.getUTCDay();
 }
 
+// 指定日時から見て直近の土曜日(当日が土曜ならそのまま)のDateを返す
+export function nextSaturday(d: Date = jstNow()): Date {
+  const weekday = jstWeekday(d);
+  const daysToSat = weekday === 6 ? 0 : (6 - weekday + 7) % 7;
+  const result = new Date(d);
+  result.setUTCDate(result.getUTCDate() + daysToSat);
+  return result;
+}
+
 const WEEKDAY_LABEL_JA = ["日", "月", "火", "水", "木", "金", "土"];
 
 export function formatJstDateLabel(dateIso: string, weekday: number): string {
