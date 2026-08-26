@@ -1,5 +1,6 @@
 import { fetchWeather } from "./weather.js";
 import { searchSpots } from "./search.js";
+import { fetchKidsEventInfo } from "./events.js";
 import { loadHistory, saveHistory, mergeSpots, recentNames } from "./store.js";
 import { sendDigestMail } from "./mailer.js";
 import { buildDigestMail } from "./digest.js";
@@ -40,6 +41,15 @@ async function main() {
     excludeNames,
   );
   console.log(`${spots.length}件の候補を取得しました。`);
+
+  if (process.env.TAVILY_API_KEY) {
+    for (const spot of spots) {
+      spot.eventInfo = await fetchKidsEventInfo(spot.name, targetDate);
+    }
+    console.log(`イベント情報: ${spots.filter((s) => s.eventInfo).length}件見つかりました。`);
+  } else {
+    console.log("TAVILY_API_KEY未設定のため、イベント情報の検索をスキップしました。");
+  }
 
   const { merged, addedCount } = mergeSpots(history.spots, spots);
   await saveHistory({ updatedAt: new Date().toISOString(), spots: merged });

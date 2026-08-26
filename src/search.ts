@@ -13,11 +13,21 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 移動時間の上限と、直線距離からの概算に使う係数
+const CAR_MAX_MINUTES = 20;
+const CAR_AVG_SPEED_KMH = 25;
+const TRANSIT_MAX_MINUTES = 60;
+const TRANSIT_TRAIN_AVG_SPEED_KMH = 35;
+const TRANSIT_OVERHEAD_MINUTES = 12; // 待ち時間・乗り換えの目安
+const WALK_METERS_PER_MINUTE = 60; // 子連れの徒歩ペース
+const STATION_MAX_KM = 3; // これより駅が遠い場合は「最寄り駅」とみなさない
+// 車で20分(≒8.3km)より広く、乗換駅探索も考慮してこの範囲で検索する
+const SEARCH_RADIUS_M = 20000;
+
 interface CategoryDef {
   osmTag: { key: string; value: string };
   label: string;
   weatherFit: WeatherFit;
-  radiusM: number;
   requireWikidata?: boolean;
   reasons: string[];
 }
@@ -27,7 +37,6 @@ const CATEGORIES: CategoryDef[] = [
     osmTag: { key: "leisure", value: "park" },
     label: "公園",
     weatherFit: "outdoor",
-    radiusM: 15000,
     requireWikidata: true,
     reasons: [
       "広い敷地でのびのび歩き回れ、3歳児でも歩き疲れにくい公園です。",
@@ -38,21 +47,18 @@ const CATEGORIES: CategoryDef[] = [
     osmTag: { key: "tourism", value: "zoo" },
     label: "動物園",
     weatherFit: "outdoor",
-    radiusM: 30000,
     reasons: ["本物の動物を間近で見られ、3歳児の好奇心を刺激してくれます。"],
   },
   {
     osmTag: { key: "tourism", value: "aquarium" },
     label: "水族館",
     weatherFit: "indoor",
-    radiusM: 30000,
     reasons: ["屋内で天気を気にせず楽しめ、色とりどりの生き物に夢中になれます。"],
   },
   {
     osmTag: { key: "tourism", value: "theme_park" },
     label: "テーマパーク",
     weatherFit: "either",
-    radiusM: 30000,
     requireWikidata: true,
     reasons: ["乗り物やアトラクションが充実し、家族で1日楽しめます。"],
   },
@@ -60,14 +66,12 @@ const CATEGORIES: CategoryDef[] = [
     osmTag: { key: "leisure", value: "water_park" },
     label: "プール・ウォーターパーク",
     weatherFit: "outdoor",
-    radiusM: 25000,
     reasons: ["水遊びが好きな3歳児にぴったりのスポットです(水着・タオルをお忘れなく)。"],
   },
   {
     osmTag: { key: "tourism", value: "museum" },
     label: "博物館・科学館",
     weatherFit: "indoor",
-    radiusM: 20000,
     requireWikidata: true,
     reasons: ["屋内で雨の日でも安心。体験型の展示があれば3歳児も楽しめます。"],
   },
@@ -75,14 +79,12 @@ const CATEGORIES: CategoryDef[] = [
     osmTag: { key: "amenity", value: "planetarium" },
     label: "プラネタリウム",
     weatherFit: "indoor",
-    radiusM: 30000,
     reasons: ["屋内施設で天候に左右されず、星空を見ながらゆったり過ごせます。"],
   },
   {
     osmTag: { key: "shop", value: "mall" },
     label: "ショッピングモール",
     weatherFit: "indoor",
-    radiusM: 15000,
     reasons: ["屋内施設でキッズスペースが併設されていることが多く、雨の日の候補になります。"],
   },
 ];
@@ -111,7 +113,7 @@ function buildPlacesQuery(lat: number, lon: number): string {
     const wikidataFilter = cat.requireWikidata ? `["wikidata"]` : "";
     return ["node", "way"].map(
       (type) =>
-        `  ${type}["${cat.osmTag.key}"="${cat.osmTag.value}"]${wikidataFilter}(around:${cat.radiusM},${lat},${lon});`,
+        `  ${type}["${cat.osmTag.key}"="${cat.osmTag.value}"]${wikidataFilter}(around:${SEARCH_RADIUS_M},${lat},${lon});`,
     );
   });
   return `[out:json][timeout:30];\n(\n${clauses.join("\n")}\n);\nout center tags;`;
@@ -162,16 +164,58 @@ function elementLatLon(el: OverpassElement): { lat: number; lon: number } | null
   return null;
 }
 
+interface NearestStation {
+  name: string;
+  lat: number;
+  lon: number;
+  distanceKm: number;
+}
+
+function nearestStation(point: { lat: number; lon: number }, stations: OverpassElement[]): NearestStation | undefined {
+  let nearest: NearestStation | undefined;
+  for (const st of stations) {
+    const pos = elementLatLon(st);
+    const name = st.tags?.name;
+    if (!pos || !name) continue;
+    const distanceKm = haversineKm(point, pos);
+    if (!nearest || distanceKm < nearest.distanceKm) nearest = { name, lat: pos.lat, lon: pos.lon, distanceKm };
+  }
+  return nearest;
+}
+
+function estimateCarMinutes(distanceKm: number): number {
+  return (distanceKm / CAR_AVG_SPEED_KMH) * 60;
+}
+
+// 自宅最寄り駅→現地最寄り駅の直線距離から、乗車+乗換待ち+両端の徒歩を合算した概算所要時間
+function estimateTransitMinutes(homeStation: NearestStation | undefined, spotStation: NearestStation | undefined): number | undefined {
+  if (!homeStation || !spotStation) return undefined;
+  if (homeStation.distanceKm > STATION_MAX_KM || spotStation.distanceKm > STATION_MAX_KM) return undefined;
+  const interStationKm = haversineKm(homeStation, spotStation);
+  const trainMinutes = (interStationKm / TRANSIT_TRAIN_AVG_SPEED_KMH) * 60;
+  const walkMinutes = ((homeStation.distanceKm + spotStation.distanceKm) * 1000) / WALK_METERS_PER_MINUTE;
+  return trainMinutes + walkMinutes + TRANSIT_OVERHEAD_MINUTES;
+}
+
 interface Candidate {
   name: string;
   category: CategoryDef;
   lat: number;
   lon: number;
   distanceKm: number;
+  carMinutes: number;
+  transitMinutes: number | undefined;
+  spotStation: NearestStation | undefined;
   url?: string;
 }
 
-function buildCandidates(elements: OverpassElement[], categoryByTag: Map<string, CategoryDef>, home: { lat: number; lon: number }): Candidate[] {
+function buildCandidates(
+  elements: OverpassElement[],
+  categoryByTag: Map<string, CategoryDef>,
+  home: { lat: number; lon: number },
+  homeStation: NearestStation | undefined,
+  stationElements: OverpassElement[],
+): Candidate[] {
   const seen = new Map<string, Candidate>();
 
   for (const el of elements) {
@@ -188,13 +232,20 @@ function buildCandidates(elements: OverpassElement[], categoryByTag: Map<string,
     if (!category) continue;
 
     const distanceKm = haversineKm(home, pos);
-    if (distanceKm > category.radiusM / 1000) continue;
+    const carMinutes = estimateCarMinutes(distanceKm);
+    const spotStation = nearestStation(pos, stationElements);
+    const transitMinutes = estimateTransitMinutes(homeStation, spotStation);
+
+    // 車で20分以内、またはバス+電車で1時間以内のどちらかを満たす場所だけを候補にする
+    const carOk = carMinutes <= CAR_MAX_MINUTES;
+    const transitOk = transitMinutes !== undefined && transitMinutes <= TRANSIT_MAX_MINUTES;
+    if (!carOk && !transitOk) continue;
 
     const url = tags.website ?? tags["contact:website"];
     const key = name;
     const existing = seen.get(key);
     if (!existing || distanceKm < existing.distanceKm) {
-      seen.set(key, { name, category, lat: pos.lat, lon: pos.lon, distanceKm, url });
+      seen.set(key, { name, category, lat: pos.lat, lon: pos.lon, distanceKm, carMinutes, transitMinutes, spotStation, url });
     }
   }
 
@@ -248,28 +299,22 @@ function selectCandidates(candidates: Candidate[], bias: "indoor" | "outdoor" | 
   return selected.sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
-function formatAccessCar(distanceKm: number): string {
-  const avgSpeedKmH = 25;
-  const minutes = Math.round((distanceKm / avgSpeedKmH) * 60 / 5) * 5;
-  return `車で約${Math.max(minutes, 5)}分(直線距離${distanceKm.toFixed(1)}km・目安、実際の道路状況により変動します)`;
+// 車で20分以内の場合だけアクセス情報を出す(それを超える候補はtransit側で選ばれている)
+function formatAccessCar(distanceKm: number, carMinutes: number): string | undefined {
+  if (carMinutes > CAR_MAX_MINUTES) return undefined;
+  const minutes = Math.max(5, Math.round(carMinutes / 5) * 5);
+  return `車で約${minutes}分(直線距離${distanceKm.toFixed(1)}km・目安、実際の道路状況により変動します)`;
 }
 
-function formatAccessTransit(spot: { lat: number; lon: number }, stations: OverpassElement[]): string | undefined {
-  let nearest: { name: string; distanceKm: number } | null = null;
-  for (const st of stations) {
-    const pos = elementLatLon(st);
-    const name = st.tags?.name;
-    if (!pos || !name) continue;
-    const distanceKm = haversineKm(spot, pos);
-    if (!nearest || distanceKm < nearest.distanceKm) nearest = { name, distanceKm };
-  }
-  if (!nearest || nearest.distanceKm > 3) return undefined;
+// バス+電車で1時間以内の場合だけアクセス情報を出す
+function formatAccessTransit(spotStation: NearestStation | undefined, transitMinutes: number | undefined): string | undefined {
+  if (!spotStation || transitMinutes === undefined || transitMinutes > TRANSIT_MAX_MINUTES) return undefined;
 
-  if (nearest.distanceKm < 0.6) {
-    const minutes = Math.max(1, Math.round((nearest.distanceKm * 1000) / 60));
-    return `${nearest.name}駅から徒歩約${minutes}分`;
+  if (spotStation.distanceKm < 0.6) {
+    const walkMinutes = Math.max(1, Math.round((spotStation.distanceKm * 1000) / WALK_METERS_PER_MINUTE));
+    return `${spotStation.name}駅から徒歩約${walkMinutes}分(自宅から乗換・待ち時間含め計約${Math.round(transitMinutes / 5) * 5}分・目安)`;
   }
-  return `${nearest.name}駅からバスまたはタクシーを利用(駅から直線距離${nearest.distanceKm.toFixed(1)}km・目安)`;
+  return `${spotStation.name}駅からバスまたはタクシーを利用(自宅から計約${Math.round(transitMinutes / 5) * 5}分・目安)`;
 }
 
 export async function searchSpots(
@@ -278,20 +323,20 @@ export async function searchSpots(
 ): Promise<Spot[]> {
   const home = { lat: params.homeLat, lon: params.homeLon };
   const categoryByTag = new Map(CATEGORIES.map((c) => [`${c.osmTag.key}=${c.osmTag.value}`, c]));
-  const maxRadiusM = Math.max(...CATEGORIES.map((c) => c.radiusM));
 
   let placeElements: OverpassElement[];
   let stationElements: OverpassElement[];
   try {
     // 無料の公開ミラーへの同時接続数を抑えるため、直列で問い合わせる
     placeElements = await queryOverpass(buildPlacesQuery(home.lat, home.lon));
-    stationElements = await queryOverpass(buildStationQuery(home.lat, home.lon, maxRadiusM));
+    stationElements = await queryOverpass(buildStationQuery(home.lat, home.lon, SEARCH_RADIUS_M));
   } catch (err) {
     console.error("お出かけ先の検索に失敗しました:", (err as Error).message);
     return [];
   }
 
-  const candidates = buildCandidates(placeElements, categoryByTag, home).filter(
+  const homeStation = nearestStation(home, stationElements);
+  const candidates = buildCandidates(placeElements, categoryByTag, home, homeStation, stationElements).filter(
     (c) => !excludeNames.includes(c.name),
   );
 
@@ -309,8 +354,8 @@ export async function searchSpots(
       category: c.category.label,
       reason,
       weatherFit: c.category.weatherFit,
-      accessCar: formatAccessCar(c.distanceKm),
-      accessTransit: formatAccessTransit(c, stationElements),
+      accessCar: formatAccessCar(c.distanceKm, c.carMinutes),
+      accessTransit: formatAccessTransit(c.spotStation, c.transitMinutes),
       url: c.url ?? `https://www.google.com/maps/search/?api=1&query=${c.lat}%2C${c.lon}`,
       suggestedFor: params.targetDate,
       suggestedAt: now,

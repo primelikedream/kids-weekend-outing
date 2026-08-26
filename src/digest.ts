@@ -14,6 +14,10 @@ function spotTextBlock(spot: Spot, i: number): string {
   if (spot.accessCar) lines.push(`   車: ${spot.accessCar}`);
   if (spot.accessTransit) lines.push(`   バス+電車: ${spot.accessTransit}`);
   if (spot.url) lines.push(`   ${spot.url}`);
+  if (spot.eventInfo) {
+    lines.push(`   🎪 ${spot.eventInfo.title} — ${spot.eventInfo.snippet}`);
+    lines.push(`      ${spot.eventInfo.url}`);
+  }
   return lines.join("\n");
 }
 
@@ -25,6 +29,13 @@ function spotHtmlCard(spot: Spot): string {
     .filter(Boolean)
     .join("");
 
+  const eventBlock = spot.eventInfo
+    ? `<div style="margin-top:8px;padding:8px;background:#fff3e0;border-radius:8px;font-size:0.85em;">
+        🎪 <a href="${spot.eventInfo.url}" style="color:#c2571a;font-weight:bold;">${escapeHtml(spot.eventInfo.title)}</a>
+        <div style="color:#666;margin-top:2px;">${escapeHtml(spot.eventInfo.snippet)}</div>
+      </div>`
+    : "";
+
   return `
     <div style="border:1px solid #f0d9b5;border-radius:12px;padding:16px;margin-bottom:14px;background:#fffaf0;">
       <div style="font-size:1.1em;font-weight:bold;color:#c2571a;">${escapeHtml(spot.name)}</div>
@@ -32,6 +43,7 @@ function spotHtmlCard(spot: Spot): string {
       ${spot.reason ? `<div style="margin-bottom:8px;">${escapeHtml(spot.reason)}</div>` : ""}
       <div style="font-size:0.9em;color:#555;">${access}</div>
       ${spot.url ? `<div style="margin-top:8px;"><a href="${spot.url}" style="color:#c2571a;">詳細を見る →</a></div>` : ""}
+      ${eventBlock}
     </div>`;
 }
 
@@ -54,7 +66,7 @@ export function buildDigestMail(params: {
   const weatherLine = weather ? `天気予報: ${weather.summary}` : "天気予報は取得できませんでした。";
 
   const disclaimer =
-    "屋内/屋外の分類やアクセス情報は地図データからの推定・目安です。営業時間・休園日は各施設の公式サイトでご確認ください。";
+    "屋内/屋外の分類やアクセス情報は地図データからの推定・目安です。🎪のイベント情報はWeb検索による自動抽出のため、最新情報は各施設の公式サイトでご確認ください。";
 
   const text =
     spots.length > 0

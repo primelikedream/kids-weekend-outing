@@ -11,6 +11,9 @@ function spotCardHtml(spot) {
   const accessCar = spot.accessCar ? `<div>🚗 ${escapeHtml(spot.accessCar)}</div>` : "";
   const accessTransit = spot.accessTransit ? `<div>🚌 ${escapeHtml(spot.accessTransit)}</div>` : "";
   const link = spot.url ? `<div class="card-link"><a href="${escapeHtml(spot.url)}" target="_blank" rel="noopener">詳細を見る →</a></div>` : "";
+  const event = spot.eventInfo
+    ? `<div class="card-event">🎪 <a href="${escapeHtml(spot.eventInfo.url)}" target="_blank" rel="noopener">${escapeHtml(spot.eventInfo.title)}</a><div>${escapeHtml(spot.eventInfo.snippet)}</div></div>`
+    : "";
 
   return `
     <div class="card">
@@ -22,6 +25,7 @@ function spotCardHtml(spot) {
       ${spot.reason ? `<div class="card-reason">${escapeHtml(spot.reason)}</div>` : ""}
       <div class="card-access">${accessCar}${accessTransit}</div>
       ${link}
+      ${event}
     </div>`;
 }
 

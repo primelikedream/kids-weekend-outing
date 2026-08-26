@@ -108,6 +108,27 @@ h2 {
 
 .card-link a:hover { text-decoration: underline; }
 
+.card-event {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #fff3e0;
+  border-radius: 8px;
+  font-size: 0.85em;
+}
+
+.card-event a {
+  color: var(--accent);
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.card-event a:hover { text-decoration: underline; }
+
+.card-event div {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 .date-group {
   margin-bottom: 18px;
 }
