@@ -1,7 +1,7 @@
 {
   "name": "kids-weekend-outing",
   "version": "0.1.0",
-  "description": "3歳児と行く週末のお出かけ先を、天気予報とWeb検索から探して提案し、ダッシュボードとメールで発信するアプリ",
+  "description": "3歳児と行く週末のお出かけ先を、天気予報とOpenStreetMap(Overpass API)から探して提案し、メールで発信するアプリ",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.120.0",
     "nodemailer": "^9.0.5"
   },
   "devDependencies": {

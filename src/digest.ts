@@ -53,15 +53,19 @@ export function buildDigestMail(params: {
 
   const weatherLine = weather ? `天気予報: ${weather.summary}` : "天気予報は取得できませんでした。";
 
+  const disclaimer =
+    "屋内/屋外の分類やアクセス情報は地図データからの推定・目安です。営業時間・休園日は各施設の公式サイトでご確認ください。";
+
   const text =
     spots.length > 0
-      ? `${targetDateLabel}のおでかけ候補です。\n${weatherLine}\n\n${spots.map(spotTextBlock).join("\n\n")}`
+      ? `${targetDateLabel}のおでかけ候補です。\n${weatherLine}\n\n${spots.map(spotTextBlock).join("\n\n")}\n\n※${disclaimer}`
       : `${targetDateLabel}のおでかけ候補を見つけられませんでした。\n${weatherLine}`;
 
   const html = `
     <h2 style="color:#c2571a;">${escapeHtml(targetDateLabel)}のおでかけ候補</h2>
     <p style="color:#666;">${escapeHtml(weatherLine)}</p>
     ${spots.length > 0 ? spots.map(spotHtmlCard).join("") : "<p>今回は候補を見つけられませんでした。</p>"}
+    ${spots.length > 0 ? `<p style="font-size:0.8em;color:#999;">※${escapeHtml(disclaimer)}</p>` : ""}
   `;
 
   return { subject, text, html };

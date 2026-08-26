@@ -1,156 +1,305 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { DayWeather } from "./weather.js";
 import type { Spot, WeatherFit } from "./types.js";
+import { haversineKm, seededRandom, seededShuffle } from "./geo.js";
 
-const MODEL = "claude-opus-5";
+// 無料の公開Overpassミラー。単体のインスタンスが混雑/タイムアウトしやすいため複数を順に試す
+const OVERPASS_URLS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
 
-interface SearchParams {
-  homeLabel: string;
-  targetDate: string; // YYYY-MM-DD
-  targetDateLabel: string; // 例: 2026年8月29日(土)
-  weather: DayWeather | null;
+interface CategoryDef {
+  osmTag: { key: string; value: string };
+  label: string;
+  weatherFit: WeatherFit;
+  radiusM: number;
+  requireWikidata?: boolean;
+  reasons: string[];
 }
 
-interface RawSpot {
-  name?: unknown;
-  category?: unknown;
-  reason?: unknown;
-  weatherFit?: unknown;
-  accessCar?: unknown;
-  accessTransit?: unknown;
-  url?: unknown;
-}
-
-function buildPrompt(params: SearchParams, excludeNames: string[]): string {
-  const { homeLabel, targetDateLabel, weather } = params;
-
-  const weatherLine = weather
-    ? `その日の天気予報: ${weather.summary}`
-    : "天気予報は取得できませんでした。屋内・屋外どちらでも楽しめる場所をバランスよく選んでください。";
-
-  const excludeLine =
-    excludeNames.length > 0
-      ? `直近6週間以内に提案済みで避けてほしい場所: ${excludeNames.join("、")}`
-      : "直近の提案履歴はありません。";
-
-  return `あなたは3歳の子どもを持つ家族向けに、週末のお出かけ先を提案する専門家です。
-
-【条件】
-- 出発地点: ${homeLabel}(神奈川県横浜市都筑区)
-- 対象日: ${targetDateLabel}
-- 移動手段: 自動車、またはバス+電車の組み合わせ(徒歩のみで行ける近所の場所は除く。片道1時間半程度まで)
-- ${weatherLine}
-- 対象年齢: 3歳児が安全に楽しめること(歩き疲れない範囲、危険が少ない、親子で一緒に楽しめる)
-- ${excludeLine}(同じ場所を繰り返し提案しないでください)
-
-Web検索を使って、実在する具体的なスポット(公園、動物園、水族館、室内遊び場、科学館、牧場、農業体験施設、ショッピングモールのキッズスペースなど)を調べてください。天気予報が雨や曇りがちなら屋内中心に、晴れなら屋外も含めてバランスよく選んでください。
-
-候補を4件、以下のJSON形式で出力してください。説明文は日本語で、実際に検索で確認できた情報のみを書き、想像で補完しないでください。アクセス情報(所要時間・最寄り駅・駐車場の有無など)も検索結果に基づいて書いてください。分からない場合は該当フィールドを省略してください。
-
-出力の最後に、他のテキストを一切含めず、次の形式のJSONだけを \`\`\`json コードブロックで出力してください:
-
-\`\`\`json
-[
+const CATEGORIES: CategoryDef[] = [
   {
-    "name": "施設名",
-    "category": "公園 / 水族館 / 室内遊び場 など",
-    "reason": "3歳児になぜおすすめか(1〜2文)",
-    "weatherFit": "indoor または outdoor または either",
-    "accessCar": "${homeLabel}からの車での所要時間や駐車場情報",
-    "accessTransit": "最寄り駅+バスなどの公共交通機関でのアクセス情報",
-    "url": "公式サイトまたは地図のURL"
+    osmTag: { key: "leisure", value: "park" },
+    label: "公園",
+    weatherFit: "outdoor",
+    radiusM: 15000,
+    requireWikidata: true,
+    reasons: [
+      "広い敷地でのびのび歩き回れ、3歳児でも歩き疲れにくい公園です。",
+      "芝生や遊具があり、体を動かして遊ぶのにぴったりの公園です。",
+    ],
+  },
+  {
+    osmTag: { key: "tourism", value: "zoo" },
+    label: "動物園",
+    weatherFit: "outdoor",
+    radiusM: 30000,
+    reasons: ["本物の動物を間近で見られ、3歳児の好奇心を刺激してくれます。"],
+  },
+  {
+    osmTag: { key: "tourism", value: "aquarium" },
+    label: "水族館",
+    weatherFit: "indoor",
+    radiusM: 30000,
+    reasons: ["屋内で天気を気にせず楽しめ、色とりどりの生き物に夢中になれます。"],
+  },
+  {
+    osmTag: { key: "tourism", value: "theme_park" },
+    label: "テーマパーク",
+    weatherFit: "either",
+    radiusM: 30000,
+    requireWikidata: true,
+    reasons: ["乗り物やアトラクションが充実し、家族で1日楽しめます。"],
+  },
+  {
+    osmTag: { key: "leisure", value: "water_park" },
+    label: "プール・ウォーターパーク",
+    weatherFit: "outdoor",
+    radiusM: 25000,
+    reasons: ["水遊びが好きな3歳児にぴったりのスポットです(水着・タオルをお忘れなく)。"],
+  },
+  {
+    osmTag: { key: "tourism", value: "museum" },
+    label: "博物館・科学館",
+    weatherFit: "indoor",
+    radiusM: 20000,
+    requireWikidata: true,
+    reasons: ["屋内で雨の日でも安心。体験型の展示があれば3歳児も楽しめます。"],
+  },
+  {
+    osmTag: { key: "amenity", value: "planetarium" },
+    label: "プラネタリウム",
+    weatherFit: "indoor",
+    radiusM: 30000,
+    reasons: ["屋内施設で天候に左右されず、星空を見ながらゆったり過ごせます。"],
+  },
+  {
+    osmTag: { key: "shop", value: "mall" },
+    label: "ショッピングモール",
+    weatherFit: "indoor",
+    radiusM: 15000,
+    reasons: ["屋内施設でキッズスペースが併設されていることが多く、雨の日の候補になります。"],
+  },
+];
+
+// OpenStreetMap上の実際のタグ付けが施設の実態(屋内/屋外など)と食い違うことが
+// 確認済みの場所を手動で除外するリスト。見つかり次第ここに追加する。
+const KNOWN_MISTAGGED_NAMES = new Set([
+  "横浜三渓園", // tourism=museumだが実際は屋外の日本庭園
+]);
+
+interface OverpassElement {
+  type: "node" | "way" | "relation";
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
+}
+
+interface OverpassResponse {
+  elements: OverpassElement[];
+}
+
+function buildPlacesQuery(lat: number, lon: number): string {
+  const clauses = CATEGORIES.flatMap((cat) => {
+    const wikidataFilter = cat.requireWikidata ? `["wikidata"]` : "";
+    return ["node", "way"].map(
+      (type) =>
+        `  ${type}["${cat.osmTag.key}"="${cat.osmTag.value}"]${wikidataFilter}(around:${cat.radiusM},${lat},${lon});`,
+    );
+  });
+  return `[out:json][timeout:30];\n(\n${clauses.join("\n")}\n);\nout center tags;`;
+}
+
+function buildStationQuery(lat: number, lon: number, radiusM: number): string {
+  return `[out:json][timeout:25];\n(\n  node["railway"="station"](around:${radiusM},${lat},${lon});\n);\nout;`;
+}
+
+async function queryOverpass(query: string): Promise<OverpassElement[]> {
+  let lastErr: Error | undefined;
+  for (const url of OVERPASS_URLS) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "*/*",
+          "User-Agent": "kids-weekend-outing/1.0 (personal weekend-outing planner)",
+        },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+      if (!res.ok) throw new Error(`Overpass APIエラー(${url}): ${res.status}`);
+      const json = (await res.json()) as OverpassResponse;
+      return json.elements;
+    } catch (err) {
+      lastErr = err as Error;
+      console.error(`Overpassミラーで取得失敗、次を試します: ${lastErr.message}`);
+    }
   }
-]
-\`\`\``;
+  throw lastErr ?? new Error("Overpass APIへの接続に失敗しました");
 }
 
-function parseWeatherFit(value: unknown): WeatherFit {
-  return value === "indoor" || value === "outdoor" ? value : "either";
+function elementLatLon(el: OverpassElement): { lat: number; lon: number } | null {
+  if (el.lat != null && el.lon != null) return { lat: el.lat, lon: el.lon };
+  if (el.center) return el.center;
+  return null;
 }
 
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+interface Candidate {
+  name: string;
+  category: CategoryDef;
+  lat: number;
+  lon: number;
+  distanceKm: number;
+  url?: string;
 }
 
-function extractJsonBlock(text: string): string | null {
-  const fenced = text.match(/```json\s*([\s\S]*?)```/i);
-  if (fenced) return fenced[1];
-  const bracket = text.match(/\[[\s\S]*\]/);
-  return bracket ? bracket[0] : null;
+function buildCandidates(elements: OverpassElement[], categoryByTag: Map<string, CategoryDef>, home: { lat: number; lon: number }): Candidate[] {
+  const seen = new Map<string, Candidate>();
+
+  for (const el of elements) {
+    const tags = el.tags ?? {};
+    const name = tags.name ?? tags["name:ja"];
+    if (!name) continue;
+    if (KNOWN_MISTAGGED_NAMES.has(name)) continue;
+
+    const pos = elementLatLon(el);
+    if (!pos) continue;
+
+    const tagKey = Object.keys(tags).find((k) => categoryByTag.has(`${k}=${tags[k]}`));
+    const category = tagKey ? categoryByTag.get(`${tagKey}=${tags[tagKey]}`) : undefined;
+    if (!category) continue;
+
+    const distanceKm = haversineKm(home, pos);
+    if (distanceKm > category.radiusM / 1000) continue;
+
+    const url = tags.website ?? tags["contact:website"];
+    const key = name;
+    const existing = seen.get(key);
+    if (!existing || distanceKm < existing.distanceKm) {
+      seen.set(key, { name, category, lat: pos.lat, lon: pos.lon, distanceKm, url });
+    }
+  }
+
+  return [...seen.values()];
+}
+
+function weatherBias(weather: DayWeather | null): "indoor" | "outdoor" | "balanced" {
+  if (!weather) return "balanced";
+  if (weather.precipitationProbability >= 50) return "indoor";
+  if (weather.precipitationProbability <= 25) return "outdoor";
+  return "balanced";
+}
+
+function matchesBias(fit: WeatherFit, bias: "indoor" | "outdoor" | "balanced"): boolean {
+  if (bias === "balanced") return true;
+  return fit === bias || fit === "either";
+}
+
+function selectCandidates(candidates: Candidate[], bias: "indoor" | "outdoor" | "balanced", rand: () => number, count: number): Candidate[] {
+  const preferred = seededShuffle(
+    candidates.filter((c) => matchesBias(c.category.weatherFit, bias)),
+    rand,
+  );
+  const rest = seededShuffle(
+    candidates.filter((c) => !matchesBias(c.category.weatherFit, bias)),
+    rand,
+  );
+
+  const selected: Candidate[] = [];
+  const usedCategories = new Set<string>();
+
+  // 1周目: カテゴリの重複を避けつつ天気に合う候補から選ぶ
+  for (const c of preferred) {
+    if (selected.length >= count) break;
+    if (usedCategories.has(c.category.label)) continue;
+    selected.push(c);
+    usedCategories.add(c.category.label);
+  }
+  // 2周目: 天気に合う候補で埋める(カテゴリ重複可)
+  for (const c of preferred) {
+    if (selected.length >= count) break;
+    if (selected.includes(c)) continue;
+    selected.push(c);
+  }
+  // 3周目: それでも足りなければ天気に合わない候補も使う
+  for (const c of rest) {
+    if (selected.length >= count) break;
+    selected.push(c);
+  }
+
+  return selected.sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+function formatAccessCar(distanceKm: number): string {
+  const avgSpeedKmH = 25;
+  const minutes = Math.round((distanceKm / avgSpeedKmH) * 60 / 5) * 5;
+  return `車で約${Math.max(minutes, 5)}分(直線距離${distanceKm.toFixed(1)}km・目安、実際の道路状況により変動します)`;
+}
+
+function formatAccessTransit(spot: { lat: number; lon: number }, stations: OverpassElement[]): string | undefined {
+  let nearest: { name: string; distanceKm: number } | null = null;
+  for (const st of stations) {
+    const pos = elementLatLon(st);
+    const name = st.tags?.name;
+    if (!pos || !name) continue;
+    const distanceKm = haversineKm(spot, pos);
+    if (!nearest || distanceKm < nearest.distanceKm) nearest = { name, distanceKm };
+  }
+  if (!nearest || nearest.distanceKm > 3) return undefined;
+
+  if (nearest.distanceKm < 0.6) {
+    const minutes = Math.max(1, Math.round((nearest.distanceKm * 1000) / 60));
+    return `${nearest.name}駅から徒歩約${minutes}分`;
+  }
+  return `${nearest.name}駅からバスまたはタクシーを利用(駅から直線距離${nearest.distanceKm.toFixed(1)}km・目安)`;
 }
 
 export async function searchSpots(
-  params: SearchParams,
+  params: { homeLabel: string; homeLat: number; homeLon: number; targetDate: string; weather: DayWeather | null },
   excludeNames: string[],
 ): Promise<Spot[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.log("ANTHROPIC_API_KEY未設定のため、お出かけ先の検索をスキップしました。");
-    return [];
-  }
+  const home = { lat: params.homeLat, lon: params.homeLon };
+  const categoryByTag = new Map(CATEGORIES.map((c) => [`${c.osmTag.key}=${c.osmTag.value}`, c]));
+  const maxRadiusM = Math.max(...CATEGORIES.map((c) => c.radiusM));
 
-  const client = new Anthropic({ apiKey });
-  const prompt = buildPrompt(params, excludeNames);
-
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: 8000,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: 8,
-        user_location: {
-          type: "approximate",
-          city: "Yokohama",
-          region: "Kanagawa",
-          country: "JP",
-          timezone: "Asia/Tokyo",
-        },
-      },
-    ],
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
-
-  const jsonText = extractJsonBlock(text);
-  if (!jsonText) {
-    console.error("お出かけ先候補のJSONを抽出できませんでした。応答テキスト:", text.slice(0, 500));
-    return [];
-  }
-
-  let raw: RawSpot[];
+  let placeElements: OverpassElement[];
+  let stationElements: OverpassElement[];
   try {
-    raw = JSON.parse(jsonText) as RawSpot[];
+    [placeElements, stationElements] = await Promise.all([
+      queryOverpass(buildPlacesQuery(home.lat, home.lon)),
+      queryOverpass(buildStationQuery(home.lat, home.lon, maxRadiusM)),
+    ]);
   } catch (err) {
-    console.error("お出かけ先候補のJSON解析に失敗しました:", (err as Error).message);
+    console.error("お出かけ先の検索に失敗しました:", (err as Error).message);
     return [];
   }
+
+  const candidates = buildCandidates(placeElements, categoryByTag, home).filter(
+    (c) => !excludeNames.includes(c.name),
+  );
+
+  const bias = weatherBias(params.weather);
+  const rand = seededRandom(params.targetDate);
+  const selected = selectCandidates(candidates, bias, rand, 4);
 
   const now = new Date().toISOString();
-  return raw
-    .map((item, i) => {
-      const name = asString(item.name);
-      if (!name) return null;
-      const spot: Spot = {
-        id: `${params.targetDate}-${i}`,
-        name,
-        category: asString(item.category) ?? "お出かけスポット",
-        reason: asString(item.reason) ?? "",
-        weatherFit: parseWeatherFit(item.weatherFit),
-        accessCar: asString(item.accessCar),
-        accessTransit: asString(item.accessTransit),
-        url: asString(item.url),
-        suggestedFor: params.targetDate,
-        suggestedAt: now,
-      };
-      return spot;
-    })
-    .filter((s): s is Spot => s !== null);
+  return selected.map((c, i) => {
+    const reasons = c.category.reasons;
+    const reason = reasons[Math.floor(rand() * reasons.length)];
+    return {
+      id: `${params.targetDate}-${i}`,
+      name: c.name,
+      category: c.category.label,
+      reason,
+      weatherFit: c.category.weatherFit,
+      accessCar: formatAccessCar(c.distanceKm),
+      accessTransit: formatAccessTransit(c, stationElements),
+      url: c.url ?? `https://www.google.com/maps/search/?api=1&query=${c.lat}%2C${c.lon}`,
+      suggestedFor: params.targetDate,
+      suggestedAt: now,
+    } satisfies Spot;
+  });
 }

@@ -36,7 +36,7 @@ async function main() {
   const excludeNames = recentNames(history, RECENT_EXCLUDE_DAYS);
 
   const spots = await searchSpots(
-    { homeLabel: HOME_LABEL, targetDate, targetDateLabel, weather },
+    { homeLabel: HOME_LABEL, homeLat: HOME_LAT, homeLon: HOME_LON, targetDate, weather },
     excludeNames,
   );
   console.log(`${spots.length}件の候補を取得しました。`);
