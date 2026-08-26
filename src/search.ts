@@ -7,7 +7,12 @@ const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
 ];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 interface CategoryDef {
   osmTag: { key: string; value: string };
@@ -117,25 +122,30 @@ function buildStationQuery(lat: number, lon: number, radiusM: number): string {
   return `[out:json][timeout:25];\n(\n  node["railway"="station"](around:${radiusM},${lat},${lon});\n);\nout;`;
 }
 
+// 公開Overpassミラーは混雑時に5xxを返しやすいため、全ミラーを2周まで試す
+// (1周目で全滅しても、少し間を置いた2周目で復旧していることがある)
 async function queryOverpass(query: string): Promise<OverpassElement[]> {
   let lastErr: Error | undefined;
-  for (const url of OVERPASS_URLS) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "*/*",
-          "User-Agent": "kids-weekend-outing/1.0 (personal weekend-outing planner)",
-        },
-        body: `data=${encodeURIComponent(query)}`,
-      });
-      if (!res.ok) throw new Error(`Overpass APIエラー(${url}): ${res.status}`);
-      const json = (await res.json()) as OverpassResponse;
-      return json.elements;
-    } catch (err) {
-      lastErr = err as Error;
-      console.error(`Overpassミラーで取得失敗、次を試します: ${lastErr.message}`);
+  for (let round = 0; round < 2; round++) {
+    if (round > 0) await sleep(8000);
+    for (const url of OVERPASS_URLS) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "*/*",
+            "User-Agent": "kids-weekend-outing/1.0 (personal weekend-outing planner)",
+          },
+          body: `data=${encodeURIComponent(query)}`,
+        });
+        if (!res.ok) throw new Error(`Overpass APIエラー(${url}): ${res.status}`);
+        const json = (await res.json()) as OverpassResponse;
+        return json.elements;
+      } catch (err) {
+        lastErr = err as Error;
+        console.error(`Overpassミラーで取得失敗、次を試します: ${lastErr.message}`);
+      }
     }
   }
   throw lastErr ?? new Error("Overpass APIへの接続に失敗しました");
@@ -268,10 +278,9 @@ export async function searchSpots(
   let placeElements: OverpassElement[];
   let stationElements: OverpassElement[];
   try {
-    [placeElements, stationElements] = await Promise.all([
-      queryOverpass(buildPlacesQuery(home.lat, home.lon)),
-      queryOverpass(buildStationQuery(home.lat, home.lon, maxRadiusM)),
-    ]);
+    // 無料の公開ミラーへの同時接続数を抑えるため、直列で問い合わせる
+    placeElements = await queryOverpass(buildPlacesQuery(home.lat, home.lon));
+    stationElements = await queryOverpass(buildStationQuery(home.lat, home.lon, maxRadiusM));
   } catch (err) {
     console.error("お出かけ先の検索に失敗しました:", (err as Error).message);
     return [];
