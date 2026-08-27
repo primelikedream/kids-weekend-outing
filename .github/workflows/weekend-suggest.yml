@@ -1,15 +1,7 @@
 name: Suggest weekend outing spots and publish dashboard
 
 on:
-  schedule:
-    # 毎週金曜 06:00 JST (木曜 21:00 UTC) — 翌土日2日分をまとめて提案
-    - cron: "0 21 * * 4"
-  workflow_dispatch:
-    inputs:
-      force:
-        description: "金曜以外でも直近の金曜日として動作確認実行する"
-        type: boolean
-        default: false
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -47,7 +39,6 @@ jobs:
           HOME_LON: ${{ vars.HOME_LON }}
           HOME_LABEL: ${{ vars.HOME_LABEL }}
           DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
-          FORCE_RUN: ${{ github.event.inputs.force }}
         run: npm run suggest
 
       - name: 履歴データの更新をコミット

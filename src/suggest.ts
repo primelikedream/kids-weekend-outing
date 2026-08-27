@@ -5,7 +5,7 @@ import { verifyAndEnrichSpot, findTimelyEventSpot } from "./enrich.js";
 import { loadHistory, saveHistory, mergeSpots, recentNames } from "./store.js";
 import { sendDigestMail } from "./mailer.js";
 import { buildDigestMail, type DaySuggestion } from "./digest.js";
-import { jstNow, jstDateString, jstWeekday, formatJstDateLabel, nextFriday, addDays } from "./date.js";
+import { jstNow, jstDateString, formatJstDateLabel, nextFriday, addDays } from "./date.js";
 import type { Spot } from "./types.js";
 
 const HOME_LAT = Number(process.env.HOME_LAT ?? "35.5165");
@@ -64,20 +64,9 @@ async function suggestForDate(
 
 async function main() {
   const now = jstNow();
-  let weekday = jstWeekday(now);
-  let friday = now;
+  // 実行タイミングに関わらず、直近の週末(土曜・日曜)2日分をまとめて提案する
+  const friday = nextFriday(now);
 
-  if (weekday !== 5) {
-    if (process.env.FORCE_RUN !== "true") {
-      console.log("金曜以外のため週末おでかけ提案の実行はスキップしました(金曜朝のみ実行)。");
-      return;
-    }
-    console.log("FORCE_RUN=true のため、金曜以外ですが直近の金曜日として実行します(動作確認用)。");
-    friday = nextFriday(now);
-    weekday = 5;
-  }
-
-  // 金曜に実行し、翌土曜・翌々日曜の2日分をまとめて提案する
   const days = [
     { date: addDays(friday, 1), weekday: 6 },
     { date: addDays(friday, 2), weekday: 0 },

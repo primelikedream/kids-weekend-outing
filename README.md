@@ -1,6 +1,6 @@
 # 週末おでかけナビ (kids-weekend-outing)
 
-3歳児と行く週末のお出かけ先を、天気予報とOpenStreetMap(Overpass API)から探して提案するアプリです。毎週金曜の朝に自動実行され、翌土曜・翌々日曜2日分の候補(自動車で20分以内、またはバス+電車で1時間以内)をまとめてメールとダッシュボードで届けます。`ANTHROPIC_API_KEY`を設定すると、Claude(Web検索付き)による候補の検証・補正と、週末限定イベントのタイムリーな発見が加わります(任意)。
+3歳児と行く週末のお出かけ先を、天気予報とOpenStreetMap(Overpass API)から探して提案するアプリです。手動実行すると、直近の週末(土曜・日曜)2日分の候補(自動車で20分以内、またはバス+電車で1時間以内)をまとめてメールとダッシュボードで届けます。`ANTHROPIC_API_KEY`を設定すると、Claude(Web検索付き)による候補の検証・補正と、週末限定イベントのタイムリーな発見が加わります(任意)。
 
 ダッシュボード: https://primelikedream.github.io/kids-weekend-outing/
 
@@ -14,7 +14,7 @@
 - `src/store.ts` — `docs/data/history.json` に提案履歴を保存(直近6週間は重複提案を避ける)
 - `src/digest.ts` / `src/mailer.ts` — 提案内容(名前・おすすめ理由・アクセス方法・イベント情報)をメール本文にそのまま記載して送信
 - `docs/` — GitHub Pagesで公開するダッシュボード(今週末分は上部に、過去の履歴は下部に表示)
-- `.github/workflows/weekend-suggest.yml` — 毎週金曜 06:00 JST に自動実行し、メール送信・履歴データのコミット・Pagesへのデプロイまで行う
+- `.github/workflows/weekend-suggest.yml` — GitHub Actionsの手動実行(workflow_dispatch)のみ。自動スケジュール実行はしない。メール送信・履歴データのコミット・Pagesへのデプロイまで行う
 
 ## 注意点
 
@@ -33,7 +33,7 @@ cp .env.example .env
 npm run suggest
 ```
 
-SMTP設定が未完了の場合はメール送信をスキップします(ローカル動作確認用)。実行は金曜のみ(それ以外の曜日はスキップ)で、翌土日2日分をまとめて提案します。
+SMTP設定が未完了の場合はメール送信をスキップします(ローカル動作確認用)。いつ実行しても直近の土日2日分をまとめて提案します。
 
 ## ダッシュボードをローカルで見る
 
@@ -42,9 +42,9 @@ npx http-server docs -p 4173 -c-1
 # http://localhost:4173 を開く
 ```
 
-## GitHub Actionsでの自動実行
+## GitHub Actionsでの手動実行
 
-リポジトリの Settings > Secrets and variables > Actions で以下を設定してください。
+自動スケジュール実行はせず、Actions タブから手動(Run workflow)で実行する運用です。リポジトリの Settings > Secrets and variables > Actions で以下を設定してください。
 
 **Secrets:**
 - `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS`
@@ -58,4 +58,8 @@ npx http-server docs -p 4173 -c-1
 
 Settings > Pages で Source を「GitHub Actions」に設定してください。
 
-手動実行(Actions タブ > Run workflow)では `force` を有効にすると、金曜以外でも直近の金曜日を対象として動作確認できます。
+実行するには: リポジトリの Actions タブ > "Suggest weekend outing spots and publish dashboard" > Run workflow。
+
+```bash
+gh workflow run weekend-suggest.yml --repo primelikedream/kids-weekend-outing
+```
