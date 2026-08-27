@@ -318,7 +318,14 @@ function formatAccessTransit(spotStation: NearestStation | undefined, transitMin
 }
 
 export async function searchSpots(
-  params: { homeLabel: string; homeLat: number; homeLon: number; targetDate: string; weather: DayWeather | null },
+  params: {
+    homeLabel: string;
+    homeLat: number;
+    homeLon: number;
+    targetDate: string;
+    weather: DayWeather | null;
+    count?: number;
+  },
   excludeNames: string[],
 ): Promise<Spot[]> {
   const home = { lat: params.homeLat, lon: params.homeLon };
@@ -342,7 +349,7 @@ export async function searchSpots(
 
   const bias = weatherBias(params.weather);
   const rand = seededRandom(params.targetDate);
-  const selected = selectCandidates(candidates, bias, rand, 4);
+  const selected = selectCandidates(candidates, bias, rand, params.count ?? 4);
 
   const now = new Date().toISOString();
   return selected.map((c, i) => {

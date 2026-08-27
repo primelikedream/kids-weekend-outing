@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
     "nodemailer": "^9.0.5"
   },
   "devDependencies": {
