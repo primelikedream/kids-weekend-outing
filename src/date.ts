@@ -23,6 +23,21 @@ export function nextSaturday(d: Date = jstNow()): Date {
   return result;
 }
 
+// 指定日時から見て直近の金曜日(当日が金曜ならそのまま)のDateを返す
+export function nextFriday(d: Date = jstNow()): Date {
+  const weekday = jstWeekday(d);
+  const daysToFri = weekday === 5 ? 0 : (5 - weekday + 7) % 7;
+  const result = new Date(d);
+  result.setUTCDate(result.getUTCDate() + daysToFri);
+  return result;
+}
+
+export function addDays(d: Date, days: number): Date {
+  const result = new Date(d);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
 const WEEKDAY_LABEL_JA = ["日", "月", "火", "水", "木", "金", "土"];
 
 export function formatJstDateLabel(dateIso: string, weekday: number): string {

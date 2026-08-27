@@ -44,6 +44,10 @@ function groupByDate(spots) {
   return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 }
 
+function todayJstDateString() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+}
+
 function filteredSpots() {
   if (currentFilter === "all") return allSpots;
   return allSpots.filter((s) => s.weatherFit === currentFilter || s.weatherFit === "either");
@@ -62,17 +66,27 @@ function render() {
     return;
   }
 
-  const [latestDate, latestSpots] = groups[0];
-  upcomingEl.innerHTML = `
-    <div class="date-group">
-      <h3>${formatDateLabel(latestDate)}</h3>
-      ${latestSpots.map(spotCardHtml).join("")}
-    </div>`;
+  const today = todayJstDateString();
+  // 金曜の朝に翌土日2日分をまとめて提案するため、今日以降の日付はすべて「次のおでかけ候補」として扱う
+  const upcoming = groups.filter(([date]) => date >= today).sort((a, b) => a[0].localeCompare(b[0]));
+  const past = groups.filter(([date]) => date < today);
 
-  const rest = groups.slice(1);
+  upcomingEl.innerHTML =
+    upcoming.length > 0
+      ? upcoming
+          .map(
+            ([date, spotsForDate]) => `
+      <div class="date-group">
+        <h3>${formatDateLabel(date)}</h3>
+        ${spotsForDate.map(spotCardHtml).join("")}
+      </div>`,
+          )
+          .join("")
+      : '<p class="empty">まだ次回分の提案がありません。</p>';
+
   archiveEl.innerHTML =
-    rest.length > 0
-      ? rest
+    past.length > 0
+      ? past
           .map(
             ([date, spotsForDate]) => `
       <div class="date-group">

@@ -2,6 +2,14 @@ import type { DayWeather } from "./weather.js";
 import type { Spot } from "./types.js";
 import type { DigestMail } from "./mailer.js";
 
+const DEFAULT_DASHBOARD_URL = "https://primelikedream.github.io/kids-weekend-outing/";
+
+export interface DaySuggestion {
+  targetDateLabel: string;
+  weather: DayWeather | null;
+  spots: Spot[];
+}
+
 const WEATHER_FIT_LABEL: Record<Spot["weatherFit"], string> = {
   indoor: "室内向き",
   outdoor: "屋外向き",
@@ -19,6 +27,15 @@ function spotTextBlock(spot: Spot, i: number): string {
     lines.push(`      ${spot.eventInfo.url}`);
   }
   return lines.join("\n");
+}
+
+function dayTextBlock(day: DaySuggestion): string {
+  const weatherLine = day.weather ? `天気予報: ${day.weather.summary}` : "天気予報は取得できませんでした。";
+  const body =
+    day.spots.length > 0
+      ? day.spots.map(spotTextBlock).join("\n\n")
+      : "今回は候補を見つけられませんでした。";
+  return `■ ${day.targetDateLabel}\n${weatherLine}\n\n${body}`;
 }
 
 function spotHtmlCard(spot: Spot): string {
@@ -47,37 +64,44 @@ function spotHtmlCard(spot: Spot): string {
     </div>`;
 }
 
+function dayHtmlSection(day: DaySuggestion): string {
+  const weatherLine = day.weather ? `天気予報: ${day.weather.summary}` : "天気予報は取得できませんでした。";
+  return `
+    <h2 style="color:#c2571a;border-bottom:2px solid #f0d9b5;padding-bottom:6px;">${escapeHtml(day.targetDateLabel)}</h2>
+    <p style="color:#666;">${escapeHtml(weatherLine)}</p>
+    ${day.spots.length > 0 ? day.spots.map(spotHtmlCard).join("") : "<p>今回は候補を見つけられませんでした。</p>"}
+  `;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function buildDigestMail(params: {
-  targetDateLabel: string;
-  weather: DayWeather | null;
-  spots: Spot[];
-}): DigestMail {
-  const { targetDateLabel, weather, spots } = params;
+export function buildDigestMail(params: { days: DaySuggestion[] }): DigestMail {
+  const { days } = params;
+  const totalSpots = days.reduce((sum, d) => sum + d.spots.length, 0);
+  const dateLabelsShort = days.map((d) => d.targetDateLabel.replace(/^\d+年/, "")).join("・");
 
   const subject =
-    spots.length > 0
-      ? `【週末おでかけ提案】${targetDateLabel}の候補 ${spots.length}件`
-      : `【週末おでかけ提案】${targetDateLabel}は候補を見つけられませんでした`;
-
-  const weatherLine = weather ? `天気予報: ${weather.summary}` : "天気予報は取得できませんでした。";
+    totalSpots > 0
+      ? `【週末おでかけ提案】${dateLabelsShort} 計${totalSpots}件`
+      : `【週末おでかけ提案】${dateLabelsShort}は候補を見つけられませんでした`;
 
   const disclaimer =
     "屋内/屋外の分類やアクセス情報は地図データからの推定・目安です。🎪のイベント情報はWeb検索による自動抽出のため、最新情報は各施設の公式サイトでご確認ください。";
 
+  const dashboardUrl = process.env.DASHBOARD_URL ?? DEFAULT_DASHBOARD_URL;
+
   const text =
-    spots.length > 0
-      ? `${targetDateLabel}のおでかけ候補です。\n${weatherLine}\n\n${spots.map(spotTextBlock).join("\n\n")}\n\n※${disclaimer}`
-      : `${targetDateLabel}のおでかけ候補を見つけられませんでした。\n${weatherLine}`;
+    totalSpots > 0
+      ? `今週末のおでかけ候補です。\n\n${days.map(dayTextBlock).join("\n\n\n")}\n\n※${disclaimer}\n\nダッシュボード: ${dashboardUrl}`
+      : `今週末のおでかけ候補を見つけられませんでした。\n\nダッシュボード: ${dashboardUrl}`;
 
   const html = `
-    <h2 style="color:#c2571a;">${escapeHtml(targetDateLabel)}のおでかけ候補</h2>
-    <p style="color:#666;">${escapeHtml(weatherLine)}</p>
-    ${spots.length > 0 ? spots.map(spotHtmlCard).join("") : "<p>今回は候補を見つけられませんでした。</p>"}
-    ${spots.length > 0 ? `<p style="font-size:0.8em;color:#999;">※${escapeHtml(disclaimer)}</p>` : ""}
+    <h1 style="color:#c2571a;">今週末のおでかけ候補</h1>
+    ${days.map(dayHtmlSection).join("")}
+    ${totalSpots > 0 ? `<p style="font-size:0.8em;color:#999;">※${escapeHtml(disclaimer)}</p>` : ""}
+    <p style="margin-top:16px;"><a href="${dashboardUrl}" style="display:inline-block;padding:0.6em 1.2em;background:#c2571a;color:#fff;text-decoration:none;border-radius:6px;">ダッシュボードを見る →</a></p>
   `;
 
   return { subject, text, html };
