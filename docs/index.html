@@ -10,6 +10,20 @@
   <header class="masthead">
     <h1>🧸 週末おでかけナビ</h1>
     <p class="subtitle">3歳児と行く、横浜市都筑区川向町からの週末おでかけ候補</p>
+    <div class="run-box" id="run-box">
+      <button class="run-button" id="run-button">🚀 今すぐ提案を実行</button>
+      <button class="run-token-clear" id="run-token-clear" hidden>トークンを削除</button>
+      <div class="run-status" id="run-status"></div>
+      <form class="run-token-form" id="run-token-form" hidden>
+        <p>
+          初回のみ、GitHub Personal Access Token(このリポジトリ限定・Actions書き込み権限)が必要です。
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHubのトークン発行ページ</a>
+          で、Repository access を「kids-weekend-outing」のみに絞り、Permissions の Actions を Read and write に設定して発行してください。トークンはこの端末のブラウザ内にのみ保存され、GitHubへ直接送信されます。
+        </p>
+        <input type="password" id="run-token-input" placeholder="github_pat_..." autocomplete="off" />
+        <button type="submit">保存して実行</button>
+      </form>
+    </div>
   </header>
 
   <main>

@@ -35,6 +35,82 @@ body {
   font-size: 0.95em;
 }
 
+.run-box {
+  max-width: 520px;
+  margin: 18px auto 0;
+  padding: 0 16px;
+}
+
+.run-button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.run-button:hover { opacity: 0.9; }
+
+.run-token-clear {
+  margin-left: 8px;
+  background: none;
+  border: 1px solid var(--accent-soft);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.run-status {
+  margin-top: 10px;
+  font-size: 0.9em;
+  min-height: 1.4em;
+}
+
+.run-status.loading { color: var(--muted); }
+.run-status.success { color: var(--outdoor); }
+.run-status.error { color: #c0392b; }
+.run-status a { color: var(--accent); }
+
+.run-token-form {
+  margin-top: 12px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--accent-soft);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.run-token-form p {
+  margin: 0 0 10px;
+  font-size: 0.82em;
+  color: var(--muted);
+}
+
+.run-token-form a { color: var(--accent); }
+
+.run-token-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--accent-soft);
+  border-radius: 6px;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
+.run-token-form button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
 main {
   max-width: 800px;
   margin: 0 auto;

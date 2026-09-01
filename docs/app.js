@@ -108,8 +108,130 @@ function setupFilterPills() {
   });
 }
 
+// --- 「今すぐ提案を実行」ボタン(GitHub Actions workflow_dispatchを直接呼ぶ) ---
+const RUN_REPO = "primelikedream/kids-weekend-outing";
+const RUN_WORKFLOW_FILE = "weekend-suggest.yml";
+const RUN_TOKEN_STORAGE_KEY = "kwo_gh_pat";
+
+function getSavedRunToken() {
+  try {
+    return localStorage.getItem(RUN_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveRunToken(token) {
+  try {
+    localStorage.setItem(RUN_TOKEN_STORAGE_KEY, token);
+  } catch {
+    /* localStorageが使えない環境では保存をあきらめる(毎回入力が必要になるだけ) */
+  }
+}
+
+function clearRunToken() {
+  try {
+    localStorage.removeItem(RUN_TOKEN_STORAGE_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
+function setRunStatus(html, kind) {
+  const el = document.getElementById("run-status");
+  el.innerHTML = html;
+  el.className = `run-status ${kind || ""}`;
+}
+
+async function dispatchRunWorkflow(token) {
+  setRunStatus("実行をリクエスト中...", "loading");
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${RUN_REPO}/actions/workflows/${RUN_WORKFLOW_FILE}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "master" }),
+      },
+    );
+
+    if (res.status === 204) {
+      const actionsUrl = `https://github.com/${RUN_REPO}/actions/workflows/${RUN_WORKFLOW_FILE}`;
+      setRunStatus(
+        `✅ 実行をリクエストしました。数分後にメールとこのページが更新されます。<a href="${actionsUrl}" target="_blank" rel="noopener">実行状況を見る →</a>`,
+        "success",
+      );
+      return;
+    }
+    if (res.status === 401) {
+      clearRunToken();
+      updateRunTokenUi();
+      setRunStatus("❌ トークンが無効なため削除しました。お手数ですが発行し直してください。", "error");
+      return;
+    }
+    if (res.status === 403) {
+      setRunStatus("❌ このトークンにはActionsを実行する権限がありません(Actions: Read and writeが必要です)。", "error");
+      return;
+    }
+    if (res.status === 404) {
+      setRunStatus("❌ リポジトリまたはワークフローが見つかりません。トークンのRepository accessを確認してください。", "error");
+      return;
+    }
+    setRunStatus(`❌ 実行に失敗しました(HTTPステータス ${res.status})。`, "error");
+  } catch (err) {
+    setRunStatus(`❌ 通信エラーが発生しました: ${escapeHtml(err.message)}`, "error");
+  }
+}
+
+function updateRunTokenUi() {
+  const hasToken = Boolean(getSavedRunToken());
+  document.getElementById("run-token-clear").hidden = !hasToken;
+  document.getElementById("run-token-form").hidden = true;
+}
+
+function setupRunButton() {
+  const button = document.getElementById("run-button");
+  const clearBtn = document.getElementById("run-token-clear");
+  const form = document.getElementById("run-token-form");
+  const input = document.getElementById("run-token-input");
+
+  updateRunTokenUi();
+
+  button.addEventListener("click", () => {
+    const token = getSavedRunToken();
+    if (token) {
+      dispatchRunWorkflow(token);
+      return;
+    }
+    form.hidden = !form.hidden;
+    if (!form.hidden) input.focus();
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const token = input.value.trim();
+    if (!token) return;
+    saveRunToken(token);
+    input.value = "";
+    updateRunTokenUi();
+    dispatchRunWorkflow(token);
+  });
+
+  clearBtn.addEventListener("click", () => {
+    clearRunToken();
+    updateRunTokenUi();
+    setRunStatus("トークンを削除しました。", "");
+  });
+}
+
 async function main() {
   setupFilterPills();
+  setupRunButton();
   try {
     const res = await fetch("data/history.json");
     const data = await res.json();
